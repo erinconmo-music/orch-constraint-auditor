@@ -1,11 +1,19 @@
 import argparse
 from typing import Dict, List, Tuple, Optional
-from music21 import converter, note, chord
+from music21 import converter, note, chord, pitch
 
 from rules_strings import (
     PART_ORDER, RANGES, CONGESTION_DENSITY, CONGESTION_SPAN_MAX, DUPLICATION_INTERVALS
 )
 from report import Issue, render_markdown
+
+PART_LABEL = {
+    "vln1": "Vln1",
+    "vln2": "Vln2",
+    "vla": "Vla",
+    "vc": "Vc",
+    "cb": "Cb",
+}
 
 def part_key_from_name(name: str) -> Optional[str]:
     if not name:
@@ -23,12 +31,21 @@ def part_key_from_name(name: str) -> Optional[str]:
         return "cb"
     return None
 
+def label(k: str) -> str:
+    return PART_LABEL.get(k, k)
+
+def note_name(m: int) -> str:
+    return pitch.Pitch(m).nameWithOctave
+
+def max_register_str(k: str) -> str:
+    lo, hi = RANGES[k]
+    return f"{note_name(lo)}-{note_name(hi)}"
+
+def adler_tag_for(*parts: str) -> str:
+    regs = "; ".join([f"Maximum register {label(p)} {max_register_str(p)}" for p in parts])
+    return f"({regs}; Adler, 2016)"
+
 def identify_parts(score) -> Dict[str, any]:
-    """
-    MusicXML (Sibelius) friendly:
-    - Uses partName / instrument names.
-    - Filters parts without notes.
-    """
     found: Dict[str, any] = {}
     parts_all = list(score.parts)
 
@@ -50,7 +67,6 @@ def identify_parts(score) -> Dict[str, any]:
         if key and key not in found:
             found[key] = p
 
-    # fallback by score order (only if something is missing)
     remaining = [k for k in PART_ORDER if k not in found]
     if remaining:
         unused = [p for p in parts if p not in found.values()]
@@ -108,9 +124,18 @@ def check_ranges(parts: Dict[str, any], events_by_part: Dict[str, list]) -> List
                 issues.append(Issue(
                     kind="Range",
                     when=offset_to_when(p, s),
-                    details=f"{k} pitch {midi} outside [{lo},{hi}] (written)"
+                    details=f"{label(k)} pitch {note_name(midi)} outside {max_register_str(k)} {adler_tag_for(k)}"
                 ))
     return issues
+
+def duplication_label(interval: int) -> str:
+    if interval == 0:
+        return "unison"
+    if interval == 12:
+        return "octave"
+    if interval == 24:
+        return "two octaves"
+    return f"{interval} semitones"
 
 def check_vertical(parts: Dict[str, any], events_by_part: Dict[str, list]) -> List[Issue]:
     issues: List[Issue] = []
@@ -119,21 +144,22 @@ def check_vertical(parts: Dict[str, any], events_by_part: Dict[str, list]) -> Li
     for t in pts:
         sounding = {}
         for k in PART_ORDER:
-            pitches = active_pitches(events_by_part.get(k, []), t)
-            if pitches:
-                sounding[k] = {"min": min(pitches), "max": max(pitches), "pitches": pitches}
+            pitches_here = active_pitches(events_by_part.get(k, []), t)
+            if pitches_here:
+                sounding[k] = {"min": min(pitches_here), "max": max(pitches_here), "pitches": pitches_here}
 
         # congestion: many parts in narrow span
         density = len(sounding)
         if density >= CONGESTION_DENSITY:
-            all_p = [p for d in sounding.values() for p in d["pitches"]]
+            all_p = [pp for d in sounding.values() for pp in d["pitches"]]
             span = max(all_p) - min(all_p) if all_p else 0
-            if span <= CONGESTION_SPAN_MAX:
-                any_part = parts[next(iter(sounding.keys()))]
+            if span <= CONGESTION_SPAN_MAX and all_p:
+                any_key = next(iter(sounding.keys()))
+                any_part = parts[any_key]
                 issues.append(Issue(
                     kind="Congestion",
                     when=offset_to_when(any_part, t),
-                    details=f"density={density}, span={span} semitones"
+                    details=f"density={density}, span {note_name(min(all_p))}-{note_name(max(all_p))} (<= {CONGESTION_SPAN_MAX} semitones)"
                 ))
 
         # crossing/overlap between adjacent parts
@@ -147,13 +173,13 @@ def check_vertical(parts: Dict[str, any], events_by_part: Dict[str, list]) -> Li
                     issues.append(Issue(
                         kind="Crossing",
                         when=offset_to_when(parts[up], t),
-                        details=f"{low} max({low_max}) > {up} max({up_max})"
+                        details=f"{label(low)} top {note_name(low_max)} crosses above {label(up)} top {note_name(up_max)} {adler_tag_for(low, up)}"
                     ))
                 elif low_max > up_min:
                     issues.append(Issue(
-                        kind="Overlap",
+                        kind="Overlap (warning)",
                         when=offset_to_when(parts[up], t),
-                        details=f"{low} max({low_max}) overlaps {up} [{up_min},{up_max}]"
+                        details=f"{label(low)} top {note_name(low_max)} overlaps {label(up)} range {note_name(up_min)}-{note_name(up_max)} {adler_tag_for(low, up)}"
                     ))
 
         # duplications (unison/octaves) using top note per part
@@ -168,7 +194,7 @@ def check_vertical(parts: Dict[str, any], events_by_part: Dict[str, list]) -> Li
                     issues.append(Issue(
                         kind="Duplication",
                         when=offset_to_when(parts[a], t),
-                        details=f"{a}({pa}) ~ {b}({pb}) interval={interval}"
+                        details=f"{label(a)} {note_name(pa)} ~ {label(b)} {note_name(pb)} ({duplication_label(interval)}) {adler_tag_for(a, b)}"
                     ))
 
     return issues

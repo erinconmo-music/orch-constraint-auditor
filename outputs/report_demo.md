@@ -13,12 +13,12 @@
 ### Counts
 
 - **Duplication:** 2
-- **Overlap:** 3
+- **Overlap (warning):** 3
 
 ### Details (first 60)
 
-- **Overlap** | m.1 beat 1.00 | vln2 max(79) overlaps vln1 [72,84]
-- **Overlap** | m.1 beat 1.00 | vla max(76) overlaps vln2 [67,79]
-- **Overlap** | m.1 beat 1.00 | vc max(72) overlaps vla [64,76]
-- **Duplication** | m.1 beat 1.00 | vln1(84) ~ vc(72) interval=12
-- **Duplication** | m.1 beat 1.00 | vln2(79) ~ cb(55) interval=24
+- **Overlap (warning)** | m.1 beat 1.00 | Vln2 top G5 overlaps Vln1 range C5-C6 (Maximum register Vln2 G3-G7; Maximum register Vln1 G3-A7; Adler, 2016)
+- **Overlap (warning)** | m.1 beat 1.00 | Vla top E5 overlaps Vln2 range G4-G5 (Maximum register Vla C3-E6; Maximum register Vln2 G3-G7; Adler, 2016)
+- **Overlap (warning)** | m.1 beat 1.00 | Vc top C5 overlaps Vla range E4-E5 (Maximum register Vc C2-E5; Maximum register Vla C3-E6; Adler, 2016)
+- **Duplication** | m.1 beat 1.00 | Vln1 C6 ~ Vc C5 (octave) (Maximum register Vln1 G3-A7; Maximum register Vc C2-E5; Adler, 2016)
+- **Duplication** | m.1 beat 1.00 | Vln2 G5 ~ Cb G3 (two octaves) (Maximum register Vln2 G3-G7; Maximum register Cb E2-G5; Adler, 2016)
