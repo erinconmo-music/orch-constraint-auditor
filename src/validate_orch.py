@@ -141,7 +141,7 @@ def check_vertical(parts: Dict[str, any], events_by_part: Dict[str, list]) -> Li
         for up, low in pairs:
             if up in sounding and low in sounding:
                 up_min, up_max = sounding[up]["min"], sounding[up]["max"]
-                low_min, low_max = sounding[low]["min"], sounding[low]["max"]
+                low_max = sounding[low]["max"]
 
                 if low_max > up_max:
                     issues.append(Issue(
@@ -156,4 +156,57 @@ def check_vertical(parts: Dict[str, any], events_by_part: Dict[str, list]) -> Li
                         details=f"{low} max({low_max}) overlaps {up} [{up_min},{up_max}]"
                     ))
 
-        # dupl
+        # duplications (unison/octaves) using top note per part
+        keys = list(sounding.keys())
+        for i in range(len(keys)):
+            for j in range(i+1, len(keys)):
+                a, b = keys[i], keys[j]
+                pa = sounding[a]["max"]
+                pb = sounding[b]["max"]
+                interval = abs(pa - pb)
+                if interval in DUPLICATION_INTERVALS:
+                    issues.append(Issue(
+                        kind="Duplication",
+                        when=offset_to_when(parts[a], t),
+                        details=f"{a}({pa}) ~ {b}({pb}) interval={interval}"
+                    ))
+
+    return issues
+
+def summarize(parts: Dict[str, any], events_by_part: Dict[str, list], issues: List[Issue]) -> Dict[str, str]:
+    total_events = sum(len(evs) for evs in events_by_part.values())
+    covered = ", ".join([k for k in PART_ORDER if k in parts])
+    return {
+        "Parts detected": covered,
+        "Total note events": str(total_events),
+        "Total issues": str(len(issues)),
+        "Pitch basis": "written pitch (score pitch)",
+        "Checks": "Range, Crossing/Overlap, Density/Congestion, Duplication"
+    }
+
+def main():
+    ap = argparse.ArgumentParser(description="Strings v1 orchestration constraint auditor (MusicXML/MIDI)")
+    ap.add_argument("input", help="Path to .musicxml/.xml/.mid/.midi")
+    ap.add_argument("--out", default="outputs/report.md", help="Output Markdown path")
+    args = ap.parse_args()
+
+    score = converter.parse(args.input)
+    parts = identify_parts(score)
+    parts = {k: v for k, v in parts.items() if k in PART_ORDER}
+    events_by_part = {k: extract_events(p) for k, p in parts.items()}
+
+    issues: List[Issue] = []
+    issues.extend(check_ranges(parts, events_by_part))
+    issues.extend(check_vertical(parts, events_by_part))
+
+    md = render_markdown(summarize(parts, events_by_part, issues), issues)
+
+    import os
+    os.makedirs(os.path.dirname(args.out), exist_ok=True)
+    with open(args.out, "w", encoding="utf-8") as f:
+        f.write(md)
+
+    print(f"OK -> {args.out}")
+
+if __name__ == "__main__":
+    main()
