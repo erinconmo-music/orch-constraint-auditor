@@ -176,24 +176,28 @@ def check_vertical(parts: Dict[str, any], events_by_part: Dict[str, list]) -> Li
         for k in PART_ORDER:
             pitches_here = active_pitches(events_by_part.get(k, []), t)
             if pitches_here:
-                sounding[k] = {"min": min(pitches_here), "max": max(pitches_here), "pitches": pitches_here}
+                sounding[k] = {
+                    "min": min(pitches_here),
+                    "max": max(pitches_here),
+                    "pitches": pitches_here
+                }
 
         # congestion: many parts in narrow span
         density = len(sounding)
         if density >= CONGESTION_DENSITY:
             all_p = [pp for d in sounding.values() for pp in d["pitches"]]
-            span = max(all_p) - min(all_p) if all_p else 0
-            if span <= CONGESTION_SPAN_MAX and all_p:
-                any_key = next(iter(sounding.keys()))
-                any_part = parts[any_key]
-                issues.append(Issue(
-                    kind="Congestion",
-                    when=offset_to_when(any_part, t),
-                    details=f"density={density}, span {note_name(min(all_p))}-{note_name(max(all_p))} (<= {CONGESTION_SPAN_MAX} semitones)"
-                ))
+            if all_p:
+                span = max(all_p) - min(all_p)
+                if span <= CONGESTION_SPAN_MAX:
+                    any_key = next(iter(sounding.keys()))
+                    issues.append(Issue(
+                        kind="Congestion",
+                        when=offset_to_when(parts[any_key], t),
+                        details=f"density={density}, span {note_name(min(all_p))}-{note_name(max(all_p))} (<= {CONGESTION_SPAN_MAX} semitones)"
+                    ))
 
         # crossing/overlap between adjacent parts
-        pairs = [("vln1","vln2"), ("vln2","vla"), ("vla","vc"), ("vc","cb")]
+        pairs = [("vln1", "vln2"), ("vln2", "vla"), ("vla", "vc"), ("vc", "cb")]
         for up, low in pairs:
             if up in sounding and low in sounding:
                 up_min, up_max = sounding[up]["min"], sounding[up]["max"]
@@ -212,10 +216,10 @@ def check_vertical(parts: Dict[str, any], events_by_part: Dict[str, list]) -> Li
                         details=f"{label(low)} top {note_name(low_max)} overlaps {label(up)} range {note_name(up_min)}-{note_name(up_max)} {adler_tag_for(low, up)}"
                     ))
 
-                # duplications (unison/octaves) using top note per part
+        # duplications (unison/octaves) using top note per part
         keys = list(sounding.keys())
         for i in range(len(keys)):
-            for j in range(i+1, len(keys)):
+            for j in range(i + 1, len(keys)):
                 a, b = keys[i], keys[j]
                 pa = sounding[a]["max"]
                 pb = sounding[b]["max"]
@@ -227,11 +231,11 @@ def check_vertical(parts: Dict[str, any], events_by_part: Dict[str, list]) -> Li
                         details=f"{label(a)} {note_name(pa)} ~ {label(b)} {note_name(pb)} ({duplication_label(interval)}) {adler_tag_for(a, b)}"
                     ))
 
-        # triplication+ (same exact pitch across parts at the same time)
+        # triplication+ (top note only, to reduce noise)
         pitch_map: Dict[int, List[str]] = {}
         for pk, d in sounding.items():
-            for m in set(d["pitches"]):  # avoid counting same pitch twice in one part
-                pitch_map.setdefault(m, []).append(pk)
+            m = d["max"]  # top note per part
+            pitch_map.setdefault(m, []).append(pk)
 
         for m, ks in pitch_map.items():
             if len(ks) >= 3:
@@ -241,11 +245,12 @@ def check_vertical(parts: Dict[str, any], events_by_part: Dict[str, list]) -> Li
                     kind="Triplication+",
                     when=offset_to_when(any_part, t),
                     details=(
-                        f"Pitch {note_name(m)} duplicated {len(ks_sorted)}x across parts: "
+                        f"Top pitch {note_name(m)} duplicated {len(ks_sorted)}x across parts: "
                         f"{', '.join(label(x) for x in ks_sorted)}. "
                         f"Consider reducing to <=2 or redistributing. (Adler, 2016)"
                     )
                 ))
+
     return issues
 
 
