@@ -77,16 +77,33 @@ def identify_parts(score) -> Dict[str, any]:
 
 def extract_events(p) -> List[Tuple[float, float, int]]:
     events = []
+
+    # If the instrument transposes (e.g., Contrabass sounds 8vb),
+    # convert to WRITTEN pitch before validation.
+    trans_semi = 0
+    try:
+        inst = p.getInstrument(returnDefault=False)
+        if inst and getattr(inst, "transposition", None):
+            trans_semi = int(inst.transposition.semitones)  # written -> sounding
+    except Exception:
+        trans_semi = 0
+
+    def to_written(midi: int) -> int:
+        # If midi is sounding, revert to written by subtracting the transposition.
+        # Example: contrabass transposition = -12 => written = sounding - (-12) = sounding + 12
+        return int(midi - trans_semi)
+
     for el in p.recurse().notes:
         start = float(el.offset)
         dur = float(el.quarterLength)
         end = start + dur
         if isinstance(el, note.Note):
-            events.append((start, end, int(el.pitch.midi)))
+            events.append((start, end, to_written(int(el.pitch.midi))))
         elif isinstance(el, chord.Chord):
             for pit in el.pitches:
-                events.append((start, end, int(pit.midi)))
+                events.append((start, end, to_written(int(pit.midi))))
     return events
+
 
 def active_pitches(events, t: float) -> List[int]:
     return [m for (s, e, m) in events if s <= t < e]
@@ -195,7 +212,7 @@ def check_vertical(parts: Dict[str, any], events_by_part: Dict[str, list]) -> Li
                         details=f"{label(low)} top {note_name(low_max)} overlaps {label(up)} range {note_name(up_min)}-{note_name(up_max)} {adler_tag_for(low, up)}"
                     ))
 
-        # duplications (unison/octaves) using top note per part
+                # duplications (unison/octaves) using top note per part
         keys = list(sounding.keys())
         for i in range(len(keys)):
             for j in range(i+1, len(keys)):
@@ -210,7 +227,6 @@ def check_vertical(parts: Dict[str, any], events_by_part: Dict[str, list]) -> Li
                         details=f"{label(a)} {note_name(pa)} ~ {label(b)} {note_name(pb)} ({duplication_label(interval)}) {adler_tag_for(a, b)}"
                     ))
 
-    return issues
         # triplication+ (same exact pitch across parts at the same time)
         pitch_map: Dict[int, List[str]] = {}
         for pk, d in sounding.items():
@@ -230,6 +246,7 @@ def check_vertical(parts: Dict[str, any], events_by_part: Dict[str, list]) -> Li
                         f"Consider reducing to <=2 or redistributing. (Adler, 2016)"
                     )
                 ))
+    return issues
 
 
 def summarize(parts: Dict[str, any], events_by_part: Dict[str, list], issues: List[Issue]) -> Dict[str, str]:
