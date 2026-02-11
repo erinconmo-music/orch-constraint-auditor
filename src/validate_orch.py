@@ -121,12 +121,25 @@ def check_ranges(parts: Dict[str, any], events_by_part: Dict[str, list]) -> List
         p = parts[k]
         for s, _, midi in evs:
             if midi < lo or midi > hi:
+                if midi < lo:
+                    rec = lo
+                    direction = "below minimum"
+                else:
+                    rec = hi
+                    direction = "above maximum"
+
                 issues.append(Issue(
-                    kind="Range",
+                    kind="Out of range (warning)",
                     when=offset_to_when(p, s),
-                    details=f"{label(k)} pitch {note_name(midi)} outside {max_register_str(k)} {adler_tag_for(k)}"
+                    details=(
+                        f"{label(k)} pitch {note_name(midi)} is {direction} for {label(k)}. "
+                        f"Recommended: {note_name(rec)}. "
+                        f"If this is intended as a harmonic, verify playability/notation. "
+                        f"{adler_tag_for(k)}"
+                    )
                 ))
     return issues
+
 
 def duplication_label(interval: int) -> str:
     if interval == 0:
@@ -198,6 +211,26 @@ def check_vertical(parts: Dict[str, any], events_by_part: Dict[str, list]) -> Li
                     ))
 
     return issues
+        # triplication+ (same exact pitch across parts at the same time)
+        pitch_map: Dict[int, List[str]] = {}
+        for pk, d in sounding.items():
+            for m in set(d["pitches"]):  # avoid counting same pitch twice in one part
+                pitch_map.setdefault(m, []).append(pk)
+
+        for m, ks in pitch_map.items():
+            if len(ks) >= 3:
+                ks_sorted = sorted(ks, key=lambda x: PART_ORDER.index(x) if x in PART_ORDER else 999)
+                any_part = parts[ks_sorted[0]]
+                issues.append(Issue(
+                    kind="Triplication+",
+                    when=offset_to_when(any_part, t),
+                    details=(
+                        f"Pitch {note_name(m)} duplicated {len(ks_sorted)}x across parts: "
+                        f"{', '.join(label(x) for x in ks_sorted)}. "
+                        f"Consider reducing to <=2 or redistributing. (Adler, 2016)"
+                    )
+                ))
+
 
 def summarize(parts: Dict[str, any], events_by_part: Dict[str, list], issues: List[Issue]) -> Dict[str, str]:
     total_events = sum(len(evs) for evs in events_by_part.values())
