@@ -246,14 +246,62 @@ def check_vertical(parts: Dict[str, any], events_by_part: Dict[str, list]) -> Li
             if len(ks) >= 3:
                 ks_sorted = sorted(ks, key=lambda x: PART_ORDER.index(x) if x in PART_ORDER else 999)
                 any_part = parts[ks_sorted[0]]
+                parts_involved = [label(x) for x in ks_sorted]
+                count = len(ks_sorted)
                 issues.append(Issue(
                     kind="Triplication+",
                     when=offset_to_when(any_part, t),
                     details=(
-                        f"Pitch {note_name(m)} duplicated {len(ks_sorted)}x across parts: "
-                        f"{', '.join(label(x) for x in ks_sorted)}. "
+                        f"Pitch {note_name(m)} duplicated {count}x across parts: "
+                        f"{', '.join(parts_involved)}. "
                         f"Consider reducing to <=2 or redistributing. (Adler, 2016)"
-                    )
+                    ),
+                    severity="warning",
+                    check_id="duplication.triplication",
+                    title="Excessive pitch duplication",
+                    parts=parts_involved,
+                    evidence={
+                        "pitch": note_name(m),
+                        "count": count,
+                        "parts": parts_involved,
+                    },
+                    why_text=(
+                        "Duplicating the same pitch in more than two parts reduces timbral differentiation and masks internal voice movement. "
+                        "Excessive unison or octave reinforcement limits orchestral clarity and reduces perceptual separation between lines."
+                    ),
+                    fix_candidates=[
+                        {
+                            "rank": 1,
+                            "description": "Remove duplication from the least structurally important part.",
+                            "score": 0.95,
+                            "score_breakdown": {"violation_reduction": 1.0, "change_cost": 0.2, "clarity_gain": 0.9},
+                        },
+                        {
+                            "rank": 2,
+                            "description": "Move one duplicated pitch by step to an adjacent chord tone.",
+                            "score": 0.82,
+                            "score_breakdown": {"violation_reduction": 0.8, "change_cost": 0.4, "clarity_gain": 0.75},
+                        },
+                        {
+                            "rank": 3,
+                            "description": "Redistribute duplicated pitch to a different octave to reduce masking.",
+                            "score": 0.68,
+                            "score_breakdown": {"violation_reduction": 0.6, "change_cost": 0.3, "clarity_gain": 0.6},
+                        },
+                    ],
+                    so_what=(
+                        "This improves voice independence, increases orchestral transparency, and enhances perceptual separation of musical lines."
+                    ),
+                    references=[
+                        {
+                            "book": "The Study of Orchestration",
+                            "edition": "3rd",
+                            "page": None,
+                            "excerpt": None,
+                            "url": None,
+                            "concept": "doubling clarity",
+                        }
+                    ],
                 ))
     return issues
 
@@ -341,7 +389,7 @@ def build_json_report(summary: Dict[str, str], issues: List[Issue]) -> Dict[str,
     return {
         "summary": summary,
         "issues": [
-            {
+            it.to_dict() if hasattr(it, "to_dict") else {
                 "kind": it.kind,
                 "when": it.when,
                 "details": it.details,
