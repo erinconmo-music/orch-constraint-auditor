@@ -14,3 +14,21 @@ RANGES = {
 CONGESTION_DENSITY = 4       # parts sounding
 CONGESTION_SPAN_MAX = 12     # semitones (<= 1 octave)
 DUPLICATION_INTERVALS = {0, 12, 24}  # unison, octave, 2 octaves
+
+# Additional melodic / tessitura checks
+# "Comfortable" high register (approx.) for sustained notes.
+# Anything clearly above this, held for LONG_NOTE_MIN_QL or more, is flagged.
+COMFORTABLE_HI = {
+    "vln1": 100,  # around E7
+    "vln2": 98,   # around D7
+    "vla":  84,   # around C6
+    "vc":   72,   # around C5
+    "cb":   67,   # around G4 (written)
+}
+
+# Minimum duration (in quarter lengths) to consider a note "sustained"
+LONG_NOTE_MIN_QL = 2.0
+
+# Interval (in semitones) above which melodic leaps are flagged
+# (e.g., > 12 = larger than an octave)
+LARGE_LEAP_INTERVAL_MIN = 13

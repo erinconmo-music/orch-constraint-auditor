@@ -77,11 +77,16 @@ Step 3 — Run the validator
  Example (input file on Desktop):
 python src/validate_orch.py ~/Desktop/name.musicxml --out outputs/report.md
 
-Step 4 — Open the report
+Optional: also control the JSON output path:
+python src/validate_orch.py ~/Desktop/name.musicxml --out outputs/report.md --json-out outputs/report.json
+
+Step 4 — Open the Markdown report
 open outputs/report.md
 
 6) Output
-A Markdown report is generated, containing:
+Two reports are generated:
+
+- A Markdown report (`--out`), containing:
 Summary (parts detected, note events, total issues)
 
 
@@ -89,6 +94,11 @@ Counts by issue type
 
 
 Issue details with musical location (measure/beat when available)
+
+- A JSON report:
+  - By default: same as `--out` but with `.json` extension (e.g. `outputs/report.md` → `outputs/report.json`)
+  - Or a custom path via `--json-out`
+  - Contains the same summary fields plus a list of issues (`kind`, `when`, `details`) for use in UIs or metrics pipelines
 
 
 7) What the tool checks (Strings v1)
@@ -105,6 +115,12 @@ Density / congestion (many parts in a narrow register)
 
 
 Duplication (unison/octaves / double-octaves)
+
+
+Sustained high register (long notes in the upper tessitura)
+
+
+Large melodic leaps (very wide intervals in one part)
 
 
 Note: Validation uses written pitch. Contrabass is evaluated by written range (it sounds one octave lower).

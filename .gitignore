@@ -1,0 +1,14 @@
+.DS_Store
+src/.DS_Store
+
+.venv/
+.pytest_cache/
+__pycache__/
+*.pyc
+
+src/orch_auditor.egg-info/
+
+# Generated reports (keep curated demo reports committed)
+outputs/report.md
+outputs/report.json
+outputs/*.json

@@ -1,9 +1,18 @@
 import argparse
+import json
+import os
 from typing import Dict, List, Tuple, Optional
 from music21 import converter, note, chord, pitch
 
 from rules_strings import (
-    PART_ORDER, RANGES, CONGESTION_DENSITY, CONGESTION_SPAN_MAX, DUPLICATION_INTERVALS
+    PART_ORDER,
+    RANGES,
+    CONGESTION_DENSITY,
+    CONGESTION_SPAN_MAX,
+    DUPLICATION_INTERVALS,
+    COMFORTABLE_HI,
+    LONG_NOTE_MIN_QL,
+    LARGE_LEAP_INTERVAL_MIN,
 )
 from report import Issue, render_markdown
 
@@ -249,6 +258,70 @@ def check_vertical(parts: Dict[str, any], events_by_part: Dict[str, list]) -> Li
     return issues
 
 
+def check_long_high_notes(parts: Dict[str, any], events_by_part: Dict[str, list]) -> List[Issue]:
+    """
+    Warn on sustained notes high in the register for each instrument.
+    """
+    issues: List[Issue] = []
+    for k, evs in events_by_part.items():
+        if k not in COMFORTABLE_HI:
+            continue
+        hi_comfort = COMFORTABLE_HI[k]
+        p = parts[k]
+        for s, e, midi in evs:
+            dur = e - s
+            if midi > hi_comfort and dur >= LONG_NOTE_MIN_QL:
+                issues.append(Issue(
+                    kind="Sustained high register (warning)",
+                    when=offset_to_when(p, s),
+                    details=(
+                        f"{label(k)} pitch {note_name(midi)} sustained for {dur:.2f} ql "
+                        f"above comfortable tessitura. Consider easing register or shortening duration. "
+                        f"{adler_tag_for(k)}"
+                    )
+                ))
+    return issues
+
+
+def check_large_leaps(parts: Dict[str, any], events_by_part: Dict[str, list]) -> List[Issue]:
+    """
+    Warn on very large melodic leaps within a part (based on top pitch at each onset).
+    """
+    issues: List[Issue] = []
+    for k, evs in events_by_part.items():
+        if not evs:
+            continue
+        p = parts[k]
+        # group by onset and take top pitch at each onset
+        by_start: Dict[float, int] = {}
+        for s, _, midi in evs:
+            if s not in by_start:
+                by_start[s] = midi
+            else:
+                by_start[s] = max(by_start[s], midi)
+        starts = sorted(by_start.keys())
+        last_midi = None
+        last_start = None
+        for s in starts:
+            midi = by_start[s]
+            if last_midi is not None:
+                interval = abs(midi - last_midi)
+                if interval >= LARGE_LEAP_INTERVAL_MIN:
+                    issues.append(Issue(
+                        kind="Large leap (warning)",
+                        when=offset_to_when(p, s),
+                        details=(
+                            f"{label(k)} leaps {interval} semitones "
+                            f"({note_name(last_midi)} → {note_name(midi)}). "
+                            f"Consider stepwise or smaller motion for playability/line. "
+                            f"{adler_tag_for(k)}"
+                        )
+                    ))
+            last_midi = midi
+            last_start = s
+    return issues
+
+
 def summarize(parts: Dict[str, any], events_by_part: Dict[str, list], issues: List[Issue]) -> Dict[str, str]:
     total_events = sum(len(evs) for evs in events_by_part.values())
     covered = ", ".join([k for k in PART_ORDER if k in parts])
@@ -257,13 +330,36 @@ def summarize(parts: Dict[str, any], events_by_part: Dict[str, list], issues: Li
         "Total note events": str(total_events),
         "Total issues": str(len(issues)),
         "Pitch basis": "written pitch (score pitch)",
-        "Checks": "Range, Crossing/Overlap, Density/Congestion, Duplication"
+        "Checks": "Range, Crossing/Overlap, Density/Congestion, Duplication, Sustained high register, Large leaps"
     }
+
+
+def build_json_report(summary: Dict[str, str], issues: List[Issue]) -> Dict[str, any]:
+    """
+    Machine-readable representation of the report for UI/metrics.
+    """
+    return {
+        "summary": summary,
+        "issues": [
+            {
+                "kind": it.kind,
+                "when": it.when,
+                "details": it.details,
+            }
+            for it in issues
+        ],
+    }
+
 
 def main():
     ap = argparse.ArgumentParser(description="Strings v1 orchestration constraint auditor (MusicXML/MIDI)")
     ap.add_argument("input", help="Path to .musicxml/.xml/.mid/.midi")
     ap.add_argument("--out", default="outputs/report.md", help="Output Markdown path")
+    ap.add_argument(
+        "--json-out",
+        default=None,
+        help="Optional JSON report path (default: same as --out with .json extension)",
+    )
     args = ap.parse_args()
 
     score = converter.parse(args.input)
@@ -274,15 +370,30 @@ def main():
     issues: List[Issue] = []
     issues.extend(check_ranges(parts, events_by_part))
     issues.extend(check_vertical(parts, events_by_part))
+    issues.extend(check_long_high_notes(parts, events_by_part))
+    issues.extend(check_large_leaps(parts, events_by_part))
 
-    md = render_markdown(summarize(parts, events_by_part, issues), issues)
+    summary = summarize(parts, events_by_part, issues)
+    md = render_markdown(summary, issues)
 
-    import os
-    os.makedirs(os.path.dirname(args.out), exist_ok=True)
+    out_dir = os.path.dirname(args.out)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(md)
 
-    print(f"OK -> {args.out}")
+    # JSON report
+    json_path = args.json_out
+    if not json_path:
+        root, _ = os.path.splitext(args.out)
+        json_path = root + ".json"
+    json_dir = os.path.dirname(json_path)
+    if json_dir:
+        os.makedirs(json_dir, exist_ok=True)
+    with open(json_path, "w", encoding="utf-8") as f_json:
+        json.dump(build_json_report(summary, issues), f_json, ensure_ascii=False, indent=2)
+
+    print(f"OK -> {args.out} (Markdown) and {json_path} (JSON)")
 
 if __name__ == "__main__":
     main()

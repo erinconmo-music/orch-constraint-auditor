@@ -1,0 +1,73 @@
+# config/default_config.yaml
+
+# Instrument ranges (MIDI). Also include harmonic extension.
+ranges:
+  vln1:
+    min: 55        # G3
+    max: 105       # A7
+    harmonic_max: 110  # D8
+  vln2:
+    min: 55        # G3
+    max: 105       # G7 (updated to match vln1 per checklist)
+    harmonic_max: 110
+  vla:
+    min: 48        # C3
+    max: 93        # A6
+    harmonic_max: 100  # E7
+  vc:
+    min: 36        # C2
+    max: 81        # A5
+    harmonic_max: 105  # A7
+  cb:
+    min: 23        # B0 (SOUNDING basis per checklist)
+    max: 67       # G4 (SOUNDING)
+    harmonic_max: 91   # G6 (SOUNDING)
+
+bass_pitch_mode: "written"  # or "sounding"
+
+extreme_register:
+  top_percent: 0.15
+  bottom_percent: 0.15
+  min_duration_beats: 2.0
+
+spacing:
+  low_break_midi: 52      # around E3
+  high_break_midi: 72     # around C5
+  min_interval_low: 7     # semitones
+  min_interval_mid: 4
+  min_interval_high: 6
+
+density:
+  window_beats: 4.0
+  max_events_per_window: 12
+
+congestion:
+  window_beats: 2.0
+  min_parts: 4
+  max_span_semitones: 12
+
+doubling:
+  max_unison_count: 2
+  max_octave_count: 2
+  max_two_octave_count: 2
+
+chords:
+  max_notes_per_chord: 2
+
+leaps:
+  min_leap_semitones: 13
+  min_tempo_bpm: 90
+  min_register_percent: 0.7
+
+checks:
+  enabled:
+    - range
+    - crossing
+    - overlap
+    - extreme_register
+    - spacing
+    - density
+    - congestion
+    - doubling
+    - chords
+    - leaps
