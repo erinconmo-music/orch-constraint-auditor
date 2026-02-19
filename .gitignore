@@ -1,13 +1,19 @@
-
-# Generated reports (keep curated demo reports committed)
-*.pyc
-.DS_Store
-.pytest_cache/
-.venv/
 __pycache__/
+*.py[cod]
+venv/
+.env
+.DS_Store
+# Generated runs
+runs/
+
+# Local backups
+*.bak.*
+
+# Virtualenv
+.venv/
+
+# Generated outputs
 outputs/
-outputs/*.json
-outputs/report.json
-outputs/report.md
-src/.DS_Store
-src/orch_auditor.egg-info/
+
+# Packaging artifacts
+*.egg-info/

@@ -12,7 +12,6 @@ license = { text = "MIT" }
 authors = [
   { name = "Your Name" }
 ]
-
 dependencies = [
   "music21>=9.1.0",
   "pyyaml>=6.0.0",
@@ -24,6 +23,10 @@ dev = [
   "ruff>=0.5.0",
 ]
 
+[project.scripts]
+orch-audit = "orch_auditor.cli:main"
+orch-auditor = "orch_auditor.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
@@ -33,6 +36,3 @@ target-version = "py311"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
-[project.scripts]
-orch-auditor = "orch_auditor.cli:main"

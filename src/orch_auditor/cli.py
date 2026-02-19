@@ -17,8 +17,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Strings v1 orchestration constraint auditor (MusicXML primary, MIDI secondary)."
     )
-    parser.add_argument("--input", required=True, help="Path to input score (.musicxml/.xml/.mid/.midi).")
-    parser.add_argument("--out", required=True, help="Path to output Markdown report.")
+    parser.add_argument("input_pos", nargs="?", help="Path to input score (.musicxml/.xml/.mid/.midi).")
+    parser.add_argument("--input", required=False, help="Path to input score (.musicxml/.xml/.mid/.midi).")
+    parser.add_argument("--out", required=False, help="Path to output Markdown report.")
     parser.add_argument("--json-out", default=None, help="Optional JSON output path (defaults to --out with .json).")
     parser.add_argument("--config", default=None, help="Optional config YAML path (defaults to config/default_config.yaml).")
     return parser
@@ -35,6 +36,11 @@ def _parse_score(path: Path):
 
 def main() -> None:
     args = build_arg_parser().parse_args()
+
+
+    # Compat: allow positional INPUT
+    if not getattr(args, "input", None) and getattr(args, "input_pos", None):
+        args.input = args.input_pos
 
     cfg = Config.load(args.config)
     input_path = Path(args.input)
