@@ -17,3 +17,17 @@ outputs/
 
 # Packaging artifacts
 *.egg-info/
+
+# Generated data
+corpus/runs/
+outputs/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Local corpora/experiments (not versioned)
+corpus/
+experiments/
